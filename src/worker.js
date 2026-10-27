@@ -1,9 +1,10 @@
+import {hashPassword as password, normalizeSetupToken} from './auth.js';
 import {buildAssets,clean,localDay,candidates,scanInstant,normalizeTable,csvCell} from './core.js';
 const json=(data={},status=200,message='')=>Response.json({ok:status<400,message,data},{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const fail=(s,m)=>{throw Object.assign(Error(m),{status:s})};
 const hex=b=>Array.from(new Uint8Array(b),x=>x.toString(16).padStart(2,'0')).join('');
 async function digest(s){return hex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))}
-async function password(p,salt=crypto.randomUUID()){let key=await crypto.subtle.importKey('raw',new TextEncoder().encode(p),'PBKDF2',false,['deriveBits']);return salt+':'+hex(await crypto.subtle.deriveBits({name:'PBKDF2',salt:new TextEncoder().encode(salt),iterations:100000,hash:'SHA-256'},key,256))}
+
 const all=async(db,q,...v)=>(await db.prepare(q).bind(...v).all()).results;
 const one=(db,q,...v)=>db.prepare(q).bind(...v).first();
 const run=(db,q,...v)=>db.prepare(q).bind(...v).run();
@@ -24,14 +25,32 @@ export default {async fetch(req,env){try{
  if(!['GET','HEAD','POST'].includes(req.method))fail(405,'Method không hợp lệ');
  if(req.method==='POST'){const raw=await req.text();if(new TextEncoder().encode(raw).length>2000000)fail(413,'Request quá lớn');try{b=JSON.parse(raw)}catch{fail(400,'JSON không hợp lệ')}if(!b||typeof b!=='object'||Array.isArray(b))fail(400,'JSON phải là object');}
 
+ if(p==='/auth/setup-status'){
+ if(req.method!=='GET')fail(405,'Yêu cầu GET');
+ if(!db)return json({code:'D1_BINDING_MISSING',version:'48.0.0'},503,'Worker chưa có D1 binding tên DB.');
+ try {
+ const existing=await one(db,"SELECT id FROM users WHERE role='admin' LIMIT 1");
+ return json({version:'48.0.0',admin_exists:!!existing,token_configured:!!normalizeSetupToken(env.SETUP_TOKEN),database_ready:true});
+ } catch { return json({code:'D1_SCHEMA_NOT_READY',version:'48.0.0'},503,'Chưa đọc được bảng users. Kiểm tra binding DB và chạy migration.'); }
+ }
  if(p==='/auth/bootstrap'){
- if(!env.SETUP_TOKEN||b.token!==env.SETUP_TOKEN)fail(403,'Setup token không hợp lệ');
- if(typeof b.password!=='string'||b.password.length<12||b.password.length>256)fail(400,'Mật khẩu tối thiểu 12 ký tự');
- const hash=await password(b.password);
- await run(db,"INSERT INTO users(id,username,password,role) SELECT ?,?,?,'admin' WHERE NOT EXISTS(SELECT 1 FROM users WHERE role='admin')",crypto.randomUUID(),clean(b.username)||'admin',hash);
- return json({},200,'Nếu hệ thống trống, admin đã được tạo.');
+ const configured=normalizeSetupToken(env.SETUP_TOKEN),submitted=normalizeSetupToken(b.token);
+ if(!configured)return json({code:'SETUP_TOKEN_MISSING'},503,'Worker đang chạy chưa nhận SETUP_TOKEN. Thêm biến runtime vào đúng Production và Deploy thay đổi.');
+ if(!submitted)return json({code:'SETUP_TOKEN_EMPTY'},400,'Ô token khởi tạo đang trống. Nhập Value của SETUP_TOKEN, không nhập tên biến hoặc mật khẩu admin.');
+ if(submitted!==configured)return json({code:'SETUP_TOKEN_MISMATCH'},403,'Token nhập vào không khớp SETUP_TOKEN của Worker đang chạy. Kiểm tra Value và URL Production.');
+ if(!db)return json({code:'D1_BINDING_MISSING'},503,'Worker chưa có D1 binding tên DB.');
+ if(typeof b.password!=='string'||b.password.length<12||b.password.length>256)fail(400,'Mật khẩu admin cần 12–256 ký tự');
+ const username=clean(b.username)||'admin';if(username.length>100)fail(400,'Tên đăng nhập tối đa 100 ký tự');
+ if(await one(db,"SELECT id FROM users WHERE role='admin' LIMIT 1"))return json({code:'ADMIN_ALREADY_EXISTS'},409,'Đã có admin trong database này. Dùng form Đăng nhập; khởi tạo không đổi mật khẩu admin cũ.');
+ const id=crypto.randomUUID(),hash=await password(b.password);
+ const result=await run(db,"INSERT INTO users(id,username,password,role,site_id,department,active) SELECT ?,?,?,'admin',NULL,'',1 WHERE NOT EXISTS(SELECT 1 FROM users WHERE role='admin')",id,username,hash);
+ if(result.meta.changes!==1)return json({code:'ADMIN_ALREADY_EXISTS'},409,'Một yêu cầu khác đã tạo admin. Hãy đăng nhập bằng tài khoản đã tạo.');
+ const created=await one(db,"SELECT id,username,role,active FROM users WHERE id=? AND role='admin'",id);
+ if(!created)return json({code:'ADMIN_VERIFY_FAILED'},500,'Không xác nhận được admin vừa ghi. Kiểm tra đúng D1 đang bind với Worker.');
+ return json({created:true,username:created.username,role:created.role,code:'ADMIN_CREATED'},201,'Đã tạo và xác nhận admin trong database. Bây giờ dùng form Đăng nhập phía trên.');
  }
  if(p==='/auth/login'){
+ if(!await one(db,"SELECT id FROM users LIMIT 1"))return json({code:'ADMIN_NOT_INITIALIZED'},409,'Database chưa có tài khoản. Khởi tạo admin lần đầu hoặc chạy database/CREATE_FIRST_ADMIN.sql trong D1 Console trước khi đăng nhập.');
  const key=await digest((req.headers.get('CF-Connecting-IP')||'local')+':'+clean(b.username));
  const attempts=await one(db,'SELECT * FROM login_attempts WHERE key=?',key);
  if(attempts&&attempts.expires>Date.now()&&attempts.count>=10)fail(429,'Thử lại sau 15 phút');

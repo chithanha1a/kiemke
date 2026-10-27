@@ -2745,3 +2745,10 @@ button:focus-visible, .file-btn:focus-visible, summary:focus-visible, input:focu
 .edit-device-note-field{display:grid;gap:6px;margin:10px 0 12px;font-weight:800;color:#10233b}
 .edit-device-note-field[hidden]{display:none!important}
 .edit-device-note-field textarea{width:100%;min-height:78px;resize:vertical;border:1px solid #c7d8eb;border-radius:12px;padding:10px 12px;font:inherit;color:#10233b;background:#fff}
+
+/* v48: workspace navigation only; the original scan layout, typography and controls are preserved. */
+.scanner-workspace-nav{max-width:1360px;margin:0 auto;padding:13px 16px 0;display:flex;align-items:center;gap:14px;font:12px Arial,Helvetica,sans-serif;color:#668198}
+.scanner-workspace-nav a{color:#175b8f;text-decoration:none;font-weight:700;padding:6px 10px;background:#fff;border:1px solid #d7e4f4;border-radius:7px}
+.scanner-workspace-nav #scannerSiteLabel{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%}
+.scanner-workspace-user{margin-left:auto;font-size:10px;color:#7a91a6}
+@media(max-width:600px){.scanner-workspace-nav{padding:9px 10px 0;font-size:11px;gap:10px}.scanner-workspace-user{display:none}}

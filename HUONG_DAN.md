@@ -1,3 +1,7 @@
+> Giao diện 48.0.0: đọc CAP_NHAT_GIAO_DIEN.md để cập nhật qua GitHub/Cloudflare. Giữ nguyên database_id thật và dữ liệu hiện có.
+
+> Cập nhật 47.1.0 ngày 27/10/2026: nếu users trống và khởi tạo token lỗi, làm theo SUA_LOI_ADMIN.md; có file database/CREATE_FIRST_ADMIN.sql để tạo admin đầu tiên trong D1 Console.
+
 # Kiểm kê Cloudflare — hướng dẫn triển khai bằng trình duyệt
 
 Bản rà soát: 26/10/2026, phiên bản 47.0.0. Đọc BAO_CAO_KIEM_THU.md để biết phạm vi kiểm thử và các phần cần nghiệm thu thực tế.

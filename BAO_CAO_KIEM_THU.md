@@ -1,3 +1,17 @@
+# Bổ sung giao diện 48.0.0 — 27/10/2026
+
+31 unit tests PASS; 23 checks browser cho luồng chính và 16 checks browser cho giao diện/quyền/tài khoản PASS, 0 uncaught page errors. Đã kiểm tra desktop/mobile và giữ 4 tab scanner. Chi tiết ở CAP_NHAT_GIAO_DIEN.md. Camera thật và Cloudflare production chưa được kiểm thử trong lần sửa giao diện này.
+
+# Bổ sung kiểm thử admin 47.1.0 — 27/10/2026
+
+- 31/31 unit/schema/crypto/QR/PDF tests PASS, bao gồm 8 ca mới cho token thiếu/rỗng/sai/trim, trạng thái DB/schema, chặn khởi tạo lặp, thông báo users trống và tạo admin bằng SQL.
+- 133 API requests / 167 assertions PASS trên Worker + D1 local sau thay đổi bootstrap (201 khi tạo, 409 khi admin đã tồn tại).
+- SQL được chạy trên SQLite schema thực của dự án và tài khoản sinh ra đã đăng nhập thành công qua hàm Worker; chạy lại không thêm tài khoản hoặc đổi hash hiện có.
+- Kiểm thử Chromium trên database local trống: trạng thái chưa có admin → token sai báo riêng → token đúng có khoảng trắng tạo admin → xóa token/password khỏi form → đăng nhập vào trang quản trị; PASS, 0 uncaught page errors.
+- Wrangler deploy --dry-run PASS.
+- Không tự tạo admin trên Cloudflare thật. Cần người quản trị chạy SQL trong D1 Console hoặc thực hiện form khởi tạo với token đúng.
+- Các kết quả kiểm thử bản 47.0.0 được giữ ở phần dưới, không coi là đã chạy lại browser/camera cho mọi thay đổi trong bản này.
+
 # Báo cáo kiểm thử Kiểm kê Cloudflare 47.0.0
 
 Ngày: 26/10/2026. Đối tượng: bản KiemKe_Cloudflare_Source.zip đã gửi trước đó, được khôi phục và sửa trong đợt rà soát này. Không thao tác lên tài khoản Cloudflare production của người dùng.

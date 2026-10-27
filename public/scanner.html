@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0b4f86">
   <title>Kiểm kê thiết bị</title>
-  <link rel="stylesheet" href="assets/css/style.css?v=47.0.0">
+  <link rel="stylesheet" href="assets/css/style.css?v=48.0.0">
   <script>
     window.KIEMKE_CSRF_TOKEN = "";
     window.OCR_ONLINE = true;
@@ -16,10 +16,10 @@
     window.TESSERACT_CDN_VERSION = '5';
     window.TESSERACT_LANG_PATH = '/assets/vendor/lang';
   </script>
-  <script src="assets/vendor/jsQR.min.js?v=47.0.0"></script>
-  <script src="assets/vendor/tesseract.min.js?v=47.0.0"></script>
+  <script src="assets/vendor/jsQR.min.js?v=48.0.0"></script>
+  <script src="assets/vendor/tesseract.min.js?v=48.0.0"></script>
 </head>
-<body><div style="padding:12px"><a href="/">← Quản trị / Chọn site</a></div>
+<body><div class="scanner-workspace-nav"><a href="/">‹ Quản trị</a><span id="scannerSiteLabel">Site hiện tại</span><span class="scanner-workspace-user">QR / OCR Inventory</span></div>
 <div class="page app-shell">
   <header class="app-header">
     <div class="app-brand">
@@ -31,7 +31,7 @@
     </div>
     <div class="user-chip compact-user-chip">
       <span>Người kiểm kê</span>
-      <b id="currentUserText">""</b>
+      <b id="currentUserText"></b>
       <button id="btnChangeUser" type="button" class="secondary compact-btn">Đổi</button>
     </div>
   </header>
@@ -79,7 +79,7 @@
 
           <aside class="scan-session-panel" aria-label="Phiên scan hiện tại">
             <div class="session-count-card">
-              <div class="department-count-main"><span><b id="currentDepartmentText">""</b><small>Số lượng scan / số lượng lưu database</small></span><strong id="departmentScanCount">0 / 0</strong></div>
+              <div class="department-count-main"><span><b id="currentDepartmentText"></b><small>Số lượng scan / số lượng lưu database</small></span><strong id="departmentScanCount">0 / 0</strong></div>
               <div class="session-event-count"><span>Lượt scan</span><b id="sessionScanEventCount">0</b></div>
             </div>
             <div class="session-device-block current-device-block">
@@ -373,7 +373,7 @@
 <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
 
 <script>for (const id of ['qrFilterDate','ocrFilterDate']) document.getElementById(id).value=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());window.INITIAL_USER = ""; window.INITIAL_SCAN_DEPARTMENT = "";</script>
-<script src="assets/js/offline-cache.js?v=47.0.0"></script>
-<script src="assets/js/app.js?v=47.0.0"></script>
+<script src="assets/js/offline-cache.js?v=48.0.0"></script>
+<script src="assets/js/app.js?v=48.0.0"></script>
 </body>
 </html>

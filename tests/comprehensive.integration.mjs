@@ -11,8 +11,8 @@ for(const path of ['/login.html','/ui.css','/assets/vendor/jsQR.min.js'])await r
 await req('/auth/login',undefined,405);await req('/auth/login','{bad',400);await req('/auth/login',[],400);
 await req('/auth/bootstrap',{token:'bad',password:pass},403);
 await req('/auth/bootstrap',{token:'local-test-only-setup-token',username:'admin',password:'short'},400);
-await req('/auth/bootstrap',{token:'local-test-only-setup-token',username:'admin',password:pass});
-await req('/auth/bootstrap',{token:'local-test-only-setup-token',username:'mustnotexist',password:pass});await req('/auth/login',{username:'mustnotexist',password:pass},401);
+await req('/auth/bootstrap',{token:'local-test-only-setup-token',username:'admin',password:pass},201);
+await req('/auth/bootstrap',{token:'local-test-only-setup-token',username:'mustnotexist',password:pass},409);await req('/auth/login',{username:'mustnotexist',password:pass},401);
 await req('/auth/login',{username:'admin',password:pass});const adminCookie=cookie;
 const me=(await req('/auth/me')).data;
 for(const path of ['/','/index.html','/admin.js','/session.js','/scanner.html','/index.php'])await raw(path); // no selected site

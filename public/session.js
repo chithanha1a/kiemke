@@ -8,3 +8,5 @@ window.fetch=(input,options={})=>{const headers=new Headers(options.headers||{})
 // Verify the active identity before any cached scanner data can be displayed.
 document.documentElement.style.visibility='hidden';
 window.sessionReady=window.fetch('/auth/me').then(r=>r.json()).then(r=>{if(!r.ok||DATA_SCOPE!==r.data.id+':'+sessionStorage.getItem('site')||(r.data.role!=='admin'&&r.data.site_id!==sessionStorage.getItem('site'))){location.replace('/');throw Error('Phiên / site đã thay đổi')} document.documentElement.style.visibility='';return r.data});
+
+window.addEventListener('DOMContentLoaded',async()=>{try{await window.sessionReady;const r=await window.fetch('/api/sites');const j=await r.json();const label=j.data?.rows?.find(s=>s.id===ACTIVE_SITE)?.name;const host=document.getElementById('scannerSiteLabel');if(host)host.textContent=label||'Site hiện tại'}catch{}});
