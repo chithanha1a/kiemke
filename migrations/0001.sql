@@ -1,0 +1,10 @@
+PRAGMA foreign_keys=ON;
+CREATE TABLE IF NOT EXISTS sites(id TEXT PRIMARY KEY,name TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,username TEXT UNIQUE NOT NULL,password TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('admin','manager','scanner')),site_id TEXT REFERENCES sites(id),department TEXT NOT NULL DEFAULT '',active INTEGER NOT NULL DEFAULT 1);
+CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),expires INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS login_attempts(key TEXT PRIMARY KEY,count INTEGER NOT NULL,expires INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS assets(id TEXT PRIMARY KEY,site_id TEXT NOT NULL REFERENCES sites(id),barcode TEXT NOT NULL,serial TEXT NOT NULL,factory TEXT NOT NULL DEFAULT '',device_code TEXT NOT NULL,data TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(site_id,barcode),UNIQUE(site_id,serial));
+CREATE INDEX IF NOT EXISTS asset_filter ON assets(site_id,factory,device_code);
+CREATE TABLE IF NOT EXISTS scans(id INTEGER PRIMARY KEY AUTOINCREMENT,site_id TEXT NOT NULL REFERENCES sites(id),user_id TEXT NOT NULL REFERENCES users(id),client_id TEXT NOT NULL,daily_key TEXT NOT NULL,source TEXT NOT NULL,scan_date TEXT NOT NULL,data TEXT NOT NULL,UNIQUE(site_id,user_id,client_id),UNIQUE(site_id,user_id,daily_key));
+CREATE INDEX IF NOT EXISTS scan_filter ON scans(site_id,scan_date,source);
+CREATE TABLE IF NOT EXISTS imports(id TEXT PRIMARY KEY,site_id TEXT NOT NULL REFERENCES sites(id),user_id TEXT NOT NULL,created_at TEXT NOT NULL,row_count INTEGER NOT NULL);

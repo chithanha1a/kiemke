@@ -1,0 +1,7 @@
+node_modules/
+.wrangler/
+.dev.vars
+backup.sql
+ADMIN_ACTIVATION.txt
+
+.test-output/

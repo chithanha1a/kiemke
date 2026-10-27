@@ -1,0 +1,48 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';import {PDFDocument} from 'pdf-lib';import * as XLSX from 'xlsx';import QRCode from 'qrcode';
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
+const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH||undefined,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu']});
+const context=await browser.newContext({acceptDownloads:true});const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+const base=process.env.TEST_URL||'http://127.0.0.1:8787';if(!/^http:\/\/(localhost|127\.0\.0\.1):/.test(base))throw Error('Local only');
+const out=process.env.TEST_OUTPUT||'.test-output';fs.mkdirSync(out,{recursive:true});let checks=0;const check=(a,b,m)=>{assert.deepEqual(a,b,m);checks++};
+try{
+await page.goto(base+'/login.html');await page.locator('#login [name=username]').fill('admin');await page.locator('#login [name=password]').fill('test-password-123');await page.locator('#login button').click();await page.waitForURL(base+'/');await page.waitForFunction(()=>document.getElementById('who').textContent.includes('admin'));
+check(await page.locator('h1').textContent(),'Kiểm kê • Cloud','admin root loads');
+const siteName='Browser-'+Date.now();await page.locator('#siteName').fill(siteName);await page.locator('#createSite').click();await page.waitForFunction(name=>[...document.querySelectorAll('#sites option')].some(o=>o.text===name),siteName);await page.locator('#sites').selectOption({label:siteName});
+const records=Array.from({length:25},(_,i)=>({barcode:'QR-BROWSER-'+String(i).padStart(3,'0'),McSerialNumber:'COMP'+String(i).padStart(6,'0'),Factory:'Factory Web',McName:'Máy tính '+i,Status:'In use',Remark:'Tiếng Việt'}));
+const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,XLSX.utils.json_to_sheet(records),'Assets');const bytes=XLSX.write(book,{bookType:'xlsx',type:'buffer'});
+await page.locator('#file').setInputFiles({name:'assets.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:bytes});await page.waitForFunction(()=>document.querySelector('#preview').textContent.includes('QR-BROWSER-000'));await page.locator('#import').click();await page.waitForFunction(()=>document.querySelector('#labels').options.length===25);check(await page.locator('#labels option').count(),25,'xlsx UI import');
+await page.locator('#edit').fill(JSON.stringify({...records[0],McName:'Edited on UI'}));await page.locator('#save').click();await page.waitForFunction(()=>document.querySelector('#asset').options[0].textContent.includes('Edited on UI'));checks++;
+await page.locator('#labels').selectOption(Array.from({length:25},(_,i)=>String(i)));const dl=page.waitForEvent('download');await page.locator('#pdf').click();const download=await dl;await download.saveAs(out+'/labels-25.pdf');const doc=await PDFDocument.load(fs.readFileSync(out+'/labels-25.pdf'));check(doc.getPageCount(),2,'25 QR labels / 24 each page');check(doc.getPage(0).getSize(),{width:595.28,height:841.89},'A4 size');
+const exportWait=page.waitForEvent('download');await page.locator('#export').click();await(await exportWait).saveAs(out+'/assets.csv');check(fs.readFileSync(out+'/assets.csv','utf8').includes('Edited on UI'),true,'CSV edited value');
+// Scanner page is reached by a normal browser navigation, without X-Site header.
+await page.locator('#scan').click();await page.waitForURL('**/scanner.html');await page.waitForFunction(()=>document.documentElement.style.visibility!=='hidden');await page.waitForFunction(()=>document.querySelector('#currentUserText').textContent==='admin');check(await page.locator('h1').textContent(),'Kiểm kê thiết bị','scanner page');
+if(await page.locator('#userModal').isVisible()){await page.locator('#departmentInput').fill('IT');await page.locator('#btnSaveUser').click();await page.waitForFunction(()=>document.querySelector('#userModal').hidden)}
+// Exact generated barcode lookup and original parser, offline DB, queue replay.
+const probe=await page.evaluate(async()=>{
+ const response=await fetch('/machine_api.php?action=lookupQr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({qr_text:'QR-BROWSER-000'})});
+ const result=await response.json();const legacy=parseQrContent('COMP000000|Laptop|Dell|AS001|SN001|U01|IT|2026-10-26');
+ const off=window.InventoryOffline;await off.replaceScopeCache('Factory Web','COMP',result.data.rows,{data_source:'mysql',device_code:'COMP'});
+ const cached=await off.lookup('Factory Web','COMP','QR-BROWSER-000',20,'mysql');
+ return {barcode:result.data.rows[0].barcode,legacy:legacy.ems,cached:cached[0]?.barcode,scope:window.DATA_SCOPE};
+});check(probe.barcode,'QR-BROWSER-000');check(probe.legacy,'COMP000000');check(probe.cached,'QR-BROWSER-000','offline custom barcode lookup');
+// Simulate offline; verified open page can read cached asset without the server.
+await context.setOffline(true);const offline=await page.evaluate(async()=>{const r=await InventoryOffline.lookup('Factory Web','COMP','QR-BROWSER-000',20,'mysql');return r.length});check(offline,1);// Capture in the real application queue while offline, then let its sync engine replay.
+const queued=await page.evaluate(async()=>{const item=await captureQrIntoQueue('QR-BROWSER-000');return item.id});check(queued>0,true,'offline scan queued');
+await context.setOffline(false);
+await page.evaluate(async()=>{await processScanQueue({force:true})});
+let remaining=1;for(let attempt=0;attempt<100;attempt++){remaining=await page.evaluate(async()=>await InventoryOffline.queueCount());if(!remaining)break;await page.waitForTimeout(100)}check(remaining,0,'offline queue drained');
+const savedScan=await page.evaluate(async()=>{const r=await fetch('/api.php?action=listRecords&source_type=qr');return (await r.json()).data.rows});check(savedScan.length,1,'offline queue replay persisted');
+// Decode actual image through the original browser scanner, with local jsQR fallback.
+const qrImage=await QRCode.toDataURL('QR-BROWSER-000',{width:400,margin:4});
+const decoded=await page.evaluate(async src=>{const img=new Image();img.src=src;await img.decode();const c=document.createElement('canvas');c.width=img.width;c.height=img.height;c.getContext('2d').drawImage(img,0,0);return decodeQrFromCanvas(c,true)},qrImage);check(decoded,'QR-BROWSER-000','actual QR image scanner');
+// Load bundled OCR worker, WASM and language model; recognize a synthetic label.
+const ocr=await page.evaluate(async()=>{const c=document.createElement('canvas');c.width=1000;c.height=220;const ctx=c.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle='black';ctx.font='bold 64px Arial';ctx.fillText('ASSET COMP000001',40,130);const w=await getWorker('eng');const result=await w.recognize(c);await w.terminate();state.ocrWorker=null;return result.data.text});check(/COMP000001/.test(ocr),true,'local OCR recognition');
+// Distinct barcodes with punctuation must remain distinct offline.
+const collisions=await page.evaluate(async()=>{const off=InventoryOffline;await off.replaceScopeCache('Factory Collision','COMP',[{barcode:'A-B',McSerialNumber:'COMP101',Factory:'Factory Collision'},{barcode:'AB',McSerialNumber:'COMP102',Factory:'Factory Collision'},{barcode:'MÁY-01',McSerialNumber:'COMP103',Factory:'Factory Collision'}],{data_source:'mysql',device_code:'COMP'});return Promise.all(['A-B','AB','MÁY-01'].map(async x=>(await off.lookup('Factory Collision','COMP',x,20,'mysql'))[0]?.McSerialNumber))});check(collisions,['COMP101','COMP102','COMP103']);
+const queueDistinct=await page.evaluate(async()=>{const p={scan_user:state.user,scan_department:state.scanDepartment,inventory_datetime:nowSqlLocal()};const first=await InventoryOffline.enqueueOrRefreshQr({...p,qr_text:'A-B',client_scan_id:crypto.randomUUID()},{status:'captured'});const second=await InventoryOffline.enqueueOrRefreshQr({...p,qr_text:'AB',client_scan_id:crypto.randomUUID()},{status:'captured'});const distinct=first.id!==second.id;await InventoryOffline.deleteQueueItem(first.id);await InventoryOffline.deleteQueueItem(second.id);return distinct});check(queueDistinct,true,'barcode punctuation does not merge queue');
+
+// Raw account/site change must not send an old scanner queue to another site.
+const pinned=await page.evaluate(async()=>{const old=sessionStorage.getItem('site');sessionStorage.setItem('site','forged-site');let rejected=false;try{await fetch('/api.php?action=getUser')}catch{rejected=true}sessionStorage.setItem('site',old);return rejected});check(pinned,true);
+await page.evaluate(()=>{document.querySelector('#toastContainer').replaceChildren();document.querySelector('#userModal').hidden=true});await page.setViewportSize({width:390,height:844});await page.screenshot({path:out+'/scanner-mobile.png',fullPage:true});
+check(errors,[],'no uncaught page errors');console.log(JSON.stringify({browser:'Chromium',checks,result:'PASS',outputs:['labels-25.pdf','assets.csv'],pageErrors:errors},null,2));
+}finally{await browser.close()}

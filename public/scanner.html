@@ -1,0 +1,379 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head><script src="/session.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b4f86">
+  <title>Kiểm kê thiết bị</title>
+  <link rel="stylesheet" href="assets/css/style.css?v=47.0.0">
+  <script>
+    window.KIEMKE_CSRF_TOKEN = "";
+    window.OCR_ONLINE = true;
+    window.OCR_FORCE_SERVER = false;
+    window.OCR_SERVER_FALLBACK = false;
+    window.QR_SERVER_FALLBACK = false;
+    window.TESSERACT_CDN_VERSION = '5';
+    window.TESSERACT_LANG_PATH = '/assets/vendor/lang';
+  </script>
+  <script src="assets/vendor/jsQR.min.js?v=47.0.0"></script>
+  <script src="assets/vendor/tesseract.min.js?v=47.0.0"></script>
+</head>
+<body><div style="padding:12px"><a href="/">← Quản trị / Chọn site</a></div>
+<div class="page app-shell">
+  <header class="app-header">
+    <div class="app-brand">
+      <div class="app-brand-mark" aria-hidden="true">QR</div>
+      <div>
+        <h1>Kiểm kê thiết bị</h1>
+        <div class="app-subtitle">QR / OCR Inventory</div>
+      </div>
+    </div>
+    <div class="user-chip compact-user-chip">
+      <span>Người kiểm kê</span>
+      <b id="currentUserText">""</b>
+      <button id="btnChangeUser" type="button" class="secondary compact-btn">Đổi</button>
+    </div>
+  </header>
+
+  <nav class="tabs product-tabs" aria-label="Chức năng kiểm kê">
+    <button type="button" class="tab-btn active" data-tab="tabQr"><span class="tab-index">1</span><span>Scan QRCode</span></button>
+    <button type="button" class="tab-btn" data-tab="tabScanned"><span class="tab-index">2</span><span>Thiết bị đã scan</span><span id="scanQueueTabCount" class="tab-count" hidden>0</span></button>
+    <button type="button" class="tab-btn" data-tab="tabOcr"><span class="tab-index">3</span><span>Scan OCR</span></button>
+    <button type="button" class="tab-btn" data-tab="tabSettings"><span class="tab-index">4</span><span>Setting</span></button>
+  </nav>
+
+  <main>
+    <!-- TAB 1: QR scanner. Compact camera left, session status right, full result below. -->
+    <section id="tabQr" class="tab-panel active">
+      <div class="card scan-workspace-card">
+        <div class="section-title compact-section-title">
+          <div><h2>Scan QRCode</h2></div>
+          <span id="qrStatusText" class="live-status">Sẵn sàng</span>
+        </div>
+
+        <div class="qr-scan-dashboard">
+          <div class="qr-camera-column">
+            <div class="preview-box qr-preview product-camera qr-compact-camera" id="qrPreviewBox">
+              <video id="qrVideo" autoplay playsinline webkit-playsinline muted></video>
+              <canvas id="qrCanvas"></canvas>
+              <div class="qr-scan-overlay" id="qrScanOverlay" aria-hidden="true">
+                <div class="qr-scan-dim dim-top"></div><div class="qr-scan-dim dim-bottom"></div>
+                <div class="qr-scan-dim dim-left"></div><div class="qr-scan-dim dim-right"></div>
+                <div class="qr-scan-box">
+                  <span class="corner tl"></span><span class="corner tr"></span>
+                  <span class="corner bl"></span><span class="corner br"></span><span class="scan-line"></span>
+                </div>
+                <div class="qr-scan-hint" id="qrScanHint">Đưa QR/Barcode vào khung</div>
+              </div>
+            </div>
+            <div class="toolbar qr-action-toolbar scan-primary-actions qr-compact-actions" aria-label="Điều khiển QR">
+              <button type="button" id="btnQrStartCamera" class="primary action-btn">Mở camera</button>
+              <button type="button" id="btnQrStopCamera" class="secondary action-btn">Tắt camera</button>
+              <button type="button" id="btnQrStartLive" class="primary action-btn">Scan liên tục</button>
+              <button type="button" id="btnQrStopLive" class="secondary action-btn">Tạm dừng</button>
+              <button type="button" id="btnQrReadFrame" class="secondary action-btn">Đọc mã</button>
+              <label class="file-btn secondary action-btn">Chọn ảnh<input type="file" id="qrImageInput" accept="image/*" capture="environment"></label>
+            </div>
+          </div>
+
+          <aside class="scan-session-panel" aria-label="Phiên scan hiện tại">
+            <div class="session-count-card">
+              <div class="department-count-main"><span><b id="currentDepartmentText">""</b><small>Số lượng scan / số lượng lưu database</small></span><strong id="departmentScanCount">0 / 0</strong></div>
+              <div class="session-event-count"><span>Lượt scan</span><b id="sessionScanEventCount">0</b></div>
+            </div>
+            <div class="session-device-block current-device-block">
+              <div class="session-label">Đang scan</div>
+              <div id="sessionCurrentDevice" class="session-device-card empty">Chưa có thiết bị.</div>
+            </div>
+            <div class="session-device-block previous-device-block">
+              <div class="session-label">Thiết bị trước đó</div>
+              <div id="sessionPreviousDevice" class="session-device-card empty">Chưa có thiết bị trước đó.</div>
+            </div>
+          </aside>
+        </div>
+
+        <textarea id="qrText" class="internal-data-hidden" hidden aria-hidden="true"></textarea>
+
+
+        <section class="qr-comment-panel" aria-label="Ghi chú kiểm kê QR">
+          <label for="qrComment"><span>Ghi chú thiết bị / Device Note</span>
+            <textarea id="qrComment" maxlength="1000" rows="2" placeholder="Nhập ghi chú cho thiết bị hiện tại hoặc mã QR tiếp theo / Enter a note for the current or next device..."></textarea>
+          </label>
+          <div class="qr-comment-actions">
+            <button type="button" id="btnSaveQrComment" class="secondary compact-action">Lưu ghi chú / Save note</button>
+            <button type="button" id="btnQrSkipCurrent" class="warning compact-action" disabled>Bỏ qua / Skip</button>
+          </div>
+          <div class="field-help">Ghi chú thuộc về thiết bị được kiểm kê, được lưu cùng record QR trong database và xuất trong báo cáo Excel. / The note belongs to the inventoried device and is stored with the QR record and Excel report.</div>
+        </section>
+
+        <details class="utility-panel" id="qrUtilityPanel" open>
+          <summary>Tra cứu thủ công & camera</summary>
+          <div class="utility-content">
+            <div class="manual-lookup-row">
+              <label>Mã tra cứu<input type="text" id="qrLookupKey" placeholder="Nhập mã EMS / McSerialNumber hoặc nội dung QR" autocomplete="off" autocapitalize="characters"></label>
+              <button type="button" id="btnLookupMachine" class="primary">Tra cứu</button>
+              <button type="button" id="btnPushQr" class="success">Lưu ngay</button>
+            </div>
+            <section id="manualLookupResult" aria-label="Kết quả tra cứu thiết bị" aria-live="polite" aria-atomic="false">
+              <div id="machineSummary" class="machine-summary-inline" role="status">Nhập mã và nhấn Tra cứu hoặc Enter để xem thông tin thiết bị.</div>
+              <div id="machineResultCards" class="machine-result-cards"></div>
+            </section>
+            <div class="zoom-row"><label for="qrZoomRange">Zoom camera</label><input type="range" id="qrZoomRange" min="1" max="4" step="0.1" value="1"></div>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- TAB 2: queue + saved QR devices, separated from scanning screen. -->
+    <section id="tabScanned" class="tab-panel">
+      <div class="card scanned-list-card session-history-card">
+        <div class="section-title compact-section-title">
+          <div>
+            <h2>Phiên scan hiện tại</h2>
+            <div class="section-caption">Thiết bị đã nhận từ lần reload web gần nhất</div>
+          </div>
+          <span class="list-count-pill"><b id="sessionScanCountMirror">0</b> thiết bị</span>
+        </div>
+        <div id="sessionScanList" class="session-scan-list session-scan-list-wide"><div class="session-list-empty">Danh sách bắt đầu lại khi reload web.</div></div>
+      </div>
+
+      <div class="card scanned-list-card">
+        <div class="section-title compact-section-title queue-title-row">
+          <div>
+            <h2>Hàng đợi chờ lưu</h2>
+            <div class="section-caption">Các mã chưa đồng bộ hoặc đang xử lý</div>
+          </div>
+          <div class="queue-title-actions">
+            <span id="scanQueueCount" class="queue-count-pill">0 chờ</span>
+            <button type="button" id="btnSyncOfflineQueue" class="success compact-action">Đồng bộ (0)</button>
+          </div>
+        </div>
+        <div class="scan-queue-panel product-queue-panel">
+          <div class="table-wrap scan-queue-wrap dt-scroll-body" id="scanQueueScroll" role="region" aria-label="Hàng đợi QR đã scan" tabindex="0">
+            <table class="history-table scan-queue-table dt-scroll-table" id="scanQueueTable">
+              <thead><tr><th>#</th><th>Thời gian</th><th>Mã</th><th>Trạng thái</th><th>Nguồn tra cứu / Đích lưu</th><th>Thao tác</th></tr></thead>
+              <tbody><tr><td colspan="6" class="empty">Hàng đợi trống.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card scanned-list-card">
+        <div class="section-title compact-section-title">
+          <div>
+            <h2>Danh sách thiết bị đã scan</h2>
+            <div class="section-caption">Dữ liệu QR đã lưu vào database</div>
+          </div>
+          <span id="qrListCount" class="list-count-pill">0 dòng</span>
+        </div>
+        <div class="filter-grid small-filter product-filter-grid qr-report-filter-grid">
+          <label>Ngày / Date
+            <input type="date" id="qrFilterDate" value="">
+          </label>
+          <label>Tìm kiếm / Search
+            <input type="search" id="qrFilterSearch" placeholder="QR, Serial, máy, ghi chú / note..." autocomplete="off">
+          </label>
+          <label class="check inline"><input type="checkbox" id="qrAllUsers"> Tất cả người dùng / All users</label>
+          <button type="button" id="btnLoadQrList" class="primary">Tải dữ liệu / Load</button>
+          <button type="button" id="btnExportQrExcel" class="success">Xuất Excel / Export</button>
+        </div>
+        <div class="table-wrap qr-saved-table-wrap product-data-table-wrap" role="region" aria-label="Danh sách thiết bị đã scan / Scanned device report" tabindex="0">
+          <table class="history-table product-data-table" id="qrListTable">
+            <thead><tr>
+              <th>ID</th><th>Thời gian kiểm kê / Inventory Time</th><th>Người kiểm kê / User</th><th>Phòng ban scan / Scan Department</th><th>EMS</th><th>Thiết bị / Device</th><th>Serial thiết bị / Device Serial No</th><th>User ID</th><th>Mã tra cứu / Lookup EMS</th><th>Bộ phận / User's Dept</th><th>Kiểm tra gần nhất / Last Check</th><th>Trạng thái / Status</th><th>Tên máy / Machine Name</th><th>McSerialNumber</th><th>Loại máy / Type</th><th>Hãng / Brand</th><th>Model</th><th>Mã tài sản / Accounting Code</th><th>Xưởng / Factory</th><th>Vị trí / Location</th><th>Người sử dụng / Used By</th><th>Bộ phận-vị trí / Position</th><th>Serial NSX / Manufacturer Serial</th><th>Ngày mua / Purchase Date</th><th>Cập nhật nguồn / Source Updated</th><th>Remark</th><th>Ghi chú / Comment</th><th>Thao tác / Actions</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: OCR kept functionally intact, with a cleaner responsive layout. -->
+    <section id="tabOcr" class="tab-panel">
+      <div class="card ocr-workspace-card">
+        <div class="section-title compact-section-title">
+          <div>
+            <h2>Scan OCR</h2>
+            <div class="section-caption">Chụp hoặc chọn ảnh để nhận dạng dữ liệu</div>
+          </div>
+          <span id="ocrStatusText" class="live-status">Sẵn sàng</span>
+        </div>
+
+        <div class="toolbar ocr-action-toolbar">
+          <button type="button" id="btnOcrStartCamera" class="primary">Mở camera</button>
+          <button type="button" id="btnOcrStopCamera" class="secondary">Tắt camera</button>
+          <button type="button" id="btnOcrCapture" class="primary">Chụp OCR</button>
+          <label class="file-btn secondary">Camera máy<input type="file" id="ocrSystemCameraInput" accept="image/*" capture="environment"></label>
+          <label class="file-btn secondary">Chọn ảnh<input type="file" id="ocrUploadInput" accept="image/*"></label>
+          <button type="button" id="btnRunOcr" class="secondary">OCR lại</button>
+        </div>
+
+        <details class="utility-panel ocr-settings-panel">
+          <summary>Tùy chọn OCR</summary>
+          <div class="utility-content">
+            <div class="settings-grid ocr-settings-grid">
+              <label>Chế độ
+                <select id="ocrMode"><option value="table" selected>Bảng: giữ dòng/cột</option><option value="line">Văn bản thường</option></select>
+              </label>
+              <label>Ngôn ngữ
+                <select id="ocrLang"><option value="eng" selected>English</option><option value="eng+vie">English + Vietnamese</option><option value="vie">Vietnamese</option></select>
+              </label>
+              <label>Zoom OCR<input type="range" id="ocrZoomRange" min="1" max="4" step="0.1" value="1"></label>
+              <label class="check"><input type="checkbox" id="tryRotations" checked> Tự xoay ảnh</label>
+              <label class="check"><input type="checkbox" id="maskQr" checked> Bỏ vùng QR</label>
+              <label class="check"><input type="checkbox" id="stripAccent" checked> Bỏ dấu tiếng Việt</label>
+            </div>
+            <div class="toolbar compact-toolbar">
+              <button type="button" id="btnOcrRotateLeft" class="secondary">Xoay trái</button>
+              <button type="button" id="btnOcrRotateRight" class="secondary">Xoay phải</button>
+              <button type="button" id="btnCheckOcrServer" class="secondary">Kiểm tra OCR online</button>
+            </div>
+          </div>
+        </details>
+
+        <div class="camera-grid ocr-camera-grid">
+          <div class="preview-box product-camera ocr-camera-box">
+            <video id="ocrVideo" autoplay playsinline muted></video>
+            <canvas id="ocrCanvas"></canvas>
+          </div>
+          <div class="result-box ocr-result-box">
+            <div class="result-head">
+              <h3>Dữ liệu OCR</h3>
+              <div class="ocr-result-actions"><button type="button" id="btnOcrAddRow" class="secondary">Thêm dòng</button><button type="button" id="btnOcrAddCol" class="secondary">Thêm cột</button><button type="button" id="btnPushOcr" class="success">Lưu</button></div>
+            </div>
+            <div id="ocrMeta" class="meta compact-meta">Chưa có dữ liệu.</div>
+            <div class="table-wrap product-data-table-wrap"><table class="edit-table" id="ocrTable"><thead></thead><tbody><tr><td class="empty">Chưa có dữ liệu.</td></tr></tbody></table></div>
+            <textarea id="rawText" class="debug-raw" placeholder="Raw text debug..." readonly></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="card scanned-list-card">
+        <div class="section-title compact-section-title"><h2>OCR đã lưu</h2><span id="ocrListCount" class="list-count-pill">0 dòng</span></div>
+        <div class="filter-grid small-filter product-filter-grid">
+          <label>Ngày <input type="date" id="ocrFilterDate" value=""></label>
+          <label>Tìm kiếm <input type="search" id="ocrFilterSearch" placeholder="Tìm dữ liệu OCR..."></label>
+          <label class="check inline"><input type="checkbox" id="ocrAllUsers"> Tất cả người dùng</label>
+          <button type="button" id="btnLoadOcrList" class="primary">Tải dữ liệu</button>
+        </div>
+        <div class="table-wrap product-data-table-wrap"><table class="history-table product-data-table" id="ocrListTable"><thead><tr><th>ID</th><th>Ngày giờ</th><th>User</th><th>Dữ liệu bảng</th><th>Thao tác</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- TAB 4: controlled offline cache settings. No machine data is downloaded automatically. -->
+    <section id="tabSettings" class="tab-panel">
+      <div class="card settings-workspace-card">
+        <div class="section-title compact-section-title">
+          <div><h2>Setting</h2><div class="section-caption">Cấu hình phạm vi thiết bị kiểm kê và dữ liệu Offline</div></div>
+          <span id="offlineStateBadge" class="offline-badge">Chưa có cache</span>
+        </div>
+
+        <section class="settings-section source-settings-section">
+          <div class="settings-section-head">
+            <div><h3>Nguồn tra cứu khi scan</h3><p>Tra cứu và lưu kiểm kê trong dữ liệu độc lập của site đang chọn.</p></div>
+            <span id="dataSourceStatusBadge" class="source-status-badge">Cloudflare D1</span>
+          </div>
+
+          <div class="settings-source-row">
+            <label>Nguồn tra cứu
+              <select id="dataSourceSelect">
+                
+                <option value="mysql">Cloudflare D1 • Site hiện tại</option>
+              </select>
+            </label>
+            <button type="button" id="btnRefreshSource" class="secondary">Làm mới nguồn</button>
+          </div>
+          <div id="sourceQueryNote" class="settings-query-note"><b>Nguồn:</b> Cloudflare D1 • <code>Maintenance.dbo.Overview</code></div>
+          <div class="fixed-save-target" role="status"><span>Đích lưu dữ liệu kiểm kê</span><b>Cloudflare D1</b><small>QR, OCR và dữ liệu đồng bộ offline được lưu tại site hiện tại.</small></div>
+        </section>
+
+        <section class="settings-section asset-import-section" hidden>
+          <div class="settings-section-head">
+            <div><h3>Import danh mục thiết bị vào OCR_Scan_db</h3><p>Hỗ trợ CSV, XLSX, XLS. Không tạo database mới; hệ thống chỉ bổ sung <b>asset_import_batches</b> và <b>asset_overview_import</b> trong database OCR hiện tại. Toàn bộ cột nguồn vẫn được giữ trong raw_json.</p></div>
+            <span id="assetImportBadge" class="source-status-badge neutral">Chưa kiểm tra</span>
+          </div>
+          <div class="asset-import-row">
+            <label class="asset-file-picker">
+              <span>File dữ liệu</span>
+              <input type="file" id="assetImportFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            </label>
+            <button type="button" id="btnImportAssetFile" class="primary">Import vào OCR DB</button>
+            <button type="button" id="btnRefreshImportStatus" class="secondary">Kiểm tra dữ liệu</button>
+          </div>
+          <div id="assetImportProgressWrap" class="asset-import-progress" hidden>
+            <div class="asset-import-progress-track"><span id="assetImportProgressBar"></span></div>
+            <b id="assetImportProgressText">0%</b>
+          </div>
+          <div id="assetImportStatus" class="asset-import-status">Chọn file Excel/CSV để import hoặc bấm “Kiểm tra dữ liệu”.</div>
+        </section>
+
+        <section class="settings-section cache-settings-section">
+          <div class="settings-section-head">
+            <div><h3>Phạm vi cache Offline</h3><p>Loại thiết bị được lấy theo 4 ký tự đầu của McSerialNumber.</p></div>
+          </div>
+          <div class="settings-scope-grid settings-scope-grid-multi">
+            <div class="device-code-field">
+              <div class="scope-label-row"><span>Loại thiết bị / Device Code</span><b id="selectedDeviceCodeCount">1 đã chọn / selected</b></div>
+              <div id="offlineDeviceCodeChecklist" class="device-code-checklist" role="group" aria-label="Chọn nhiều loại thiết bị / Select multiple device codes">
+                <label class="device-code-check"><input type="checkbox" value="COMP" checked><span>COMP</span></label>
+              </div>
+              <div class="device-code-mini-actions">
+                <button type="button" id="btnSelectAllDeviceCodes" class="text-action">Chọn tất cả / All</button>
+                <button type="button" id="btnClearDeviceCodes" class="text-action">Chỉ COMP / Reset</button>
+              </div>
+            </div>
+            <button type="button" id="btnLoadDeviceCodes" class="secondary">Lấy loại thiết bị</button>
+            <label>Xưởng / Factory
+              <select id="offlineFactorySelect"><option value="">-- Tất cả xưởng / All factories --</option></select>
+            </label>
+            <button type="button" id="btnLoadFactories" class="secondary">Lấy danh sách xưởng</button>
+          </div>
+
+          <div class="settings-query-note"><b>Logic loại thiết bị / Device type logic:</b> <code>SELECT DISTINCT LEFT(McSerialNumber,4) AS code ... ORDER BY LEFT(McSerialNumber,4)</code></div>
+
+          <div class="settings-cache-actions">
+            <button type="button" id="btnDownloadOfflineCache" class="primary">Tải cache xưởng đã chọn / Selected factory</button>
+            <button type="button" id="btnDownloadAllOfflineCache" class="primary">Tải cache tất cả xưởng / All factories</button>
+            <button type="button" id="btnDeleteOfflineCache" class="secondary">Xóa cache phạm vi chọn / Selected scope</button>
+            <button type="button" id="btnDeleteAllOfflineCache" class="secondary">Xóa toàn bộ cache / All cache</button>
+          </div>
+          <div id="offlineCacheInfo" class="offline-cache-info settings-cache-info">Chưa có dữ liệu cache.</div>
+          <div class="settings-note">Cache chỉ tải khi người dùng yêu cầu. Khi scan, hệ thống dùng nguồn đang chọn: Database Online → nếu lỗi kết nối thì cache Offline cùng nguồn → queue local → tự đồng bộ khi Online.</div>
+        </section>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="modal" id="userModal" hidden>
+  <div class="modal-box small">
+    <h2>Người kiểm kê</h2>
+    <input type="text" id="userNameInput" placeholder="Nhập tên người scan" value="">
+    <label class="department-field">Phòng ban scan
+      <input type="text" id="departmentInput" list="departmentOptions" maxlength="150" autocomplete="organization" placeholder="Nhập mới hoặc chọn phòng ban đã dùng" value="">
+      <datalist id="departmentOptions"></datalist>
+      <small>Có thể nhập phòng ban mới hoặc chọn lại phòng ban đã nhập trước đây.</small>
+    </label>
+    <div class="modal-actions"><button type="button" id="btnSaveUser" class="primary">Lưu</button></div>
+  </div>
+</div>
+
+<div class="modal" id="editModal" hidden>
+  <div class="modal-box wide">
+    <div class="result-head"><h2>Sửa dữ liệu đã lưu / Edit saved record</h2><button type="button" id="btnCloseEdit" class="secondary">Đóng / Close</button></div>
+    <label id="editDeviceNoteField" class="edit-device-note-field" hidden>Ghi chú thiết bị / Device Note
+      <textarea id="editDeviceNote" maxlength="1000" rows="3" placeholder="Ghi chú riêng của thiết bị / Device-specific note"></textarea>
+    </label>
+    <div class="toolbar smallbar"><button type="button" id="btnEditAddRow" class="secondary">Thêm dòng / Add row</button><button type="button" id="btnEditAddCol" class="secondary">Thêm cột / Add column</button><button type="button" id="btnSaveEdit" class="success">Lưu sửa / Save</button></div>
+    <div class="table-wrap"><table class="edit-table" id="editTable"><thead></thead><tbody></tbody></table></div>
+  </div>
+</div>
+
+<div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+<script>for (const id of ['qrFilterDate','ocrFilterDate']) document.getElementById(id).value=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());window.INITIAL_USER = ""; window.INITIAL_SCAN_DEPARTMENT = "";</script>
+<script src="assets/js/offline-cache.js?v=47.0.0"></script>
+<script src="assets/js/app.js?v=47.0.0"></script>
+</body>
+</html>

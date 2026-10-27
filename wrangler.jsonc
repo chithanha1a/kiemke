@@ -1,0 +1,5 @@
+{
+ "name":"kiemke-cloudflare", "main":"src/worker.js", "compatibility_date":"2026-10-01",
+ "assets":{"directory":"./public","binding":"ASSETS","run_worker_first":true,"html_handling":"none"},
+ "d1_databases":[{"binding":"DB","database_name":"kiemke","database_id":"4ac20b3a-d40f-4dd1-bf78-a29346925df7","migrations_dir":"migrations"}]
+}
