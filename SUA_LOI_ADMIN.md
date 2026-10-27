@@ -48,6 +48,6 @@ Không xóa database, không xóa các bảng, không INSERT mật khẩu rõ v�
 
 Tải lên repository các file thay đổi: src/worker.js, src/auth.js, public/login.html, public/assets/js/login.js; các file hướng dẫn/test/script có thể cập nhật kèm. Giữ nguyên database_id thật trong wrangler.jsonc; đừng thay bằng REPLACE_WITH_D1_ID từ gói mẫu. Không upload ADMIN_ACTIVATION.txt hoặc .dev.vars.
 
-Cloudflare Builds deploy lại theo cấu hình đã hướng dẫn. Sau deploy, mở /auth/setup-status: data.version phải là 48.0.0 (bản giao diện mới). Nếu vẫn 404 hoặc phiên bản cũ, website chưa chạy bản sửa mới. Dù chưa deploy mới, SQL tạo admin vẫn tương thích định dạng mật khẩu của bản 47.0.0.
+Cloudflare Builds deploy lại theo cấu hình đã hướng dẫn. Sau deploy, mở /auth/setup-status: data.version phải là 49.0.0 (bản giao diện mới). Nếu vẫn 404 hoặc phiên bản cũ, website chưa chạy bản sửa mới. Dù chưa deploy mới, SQL tạo admin vẫn tương thích định dạng mật khẩu của bản 47.0.0.
 
 Chưa có thay đổi nào được thực hiện trực tiếp trên Cloudflare của anh từ phiên làm việc này.

@@ -1,3 +1,5 @@
+> Bản 49 bổ sung xác minh version/build và chọn in QR bằng checkbox. Đọc DEPLOY_DUNG_PHIEN_BAN.md.
+
 # Giao diện quản trị và scan — phiên bản 48.0.0
 
 ## Nội dung thay đổi
@@ -18,7 +20,7 @@
 2. Upload/commit các file giao diện và source mới. Đặc biệt phải cập nhật src/admin.js vì Cloudflare build lại public/admin.js từ file này.
 3. Giữ nguyên database_id thật trong wrangler.jsonc hiện tại của anh. Không thay bằng REPLACE_WITH_D1_ID từ file mẫu của ZIP.
 4. Để Cloudflare Builds chạy npm run build và deploy như cấu hình hiện có.
-5. Mở website bằng Visit và Ctrl+F5. Có thể kiểm tra /auth/setup-status trả data.version = 48.0.0.
+5. Mở website bằng Visit và Ctrl+F5. Có thể kiểm tra /auth/setup-status trả data.version = 49.0.0.
 6. Tài khoản, site, dữ liệu đã có tiếp tục dùng database hiện tại. Bản cập nhật giao diện không yêu cầu chạy lại script tạo admin hoặc xóa dữ liệu.
 
 Các file chính đã thay đổi: src/admin.js; public/index.html; public/ui.css; public/admin.js (build output); public/login.html; public/scanner.html; public/session.js; public/assets/css/style.css. src/worker.js chỉ cập nhật metadata phiên bản của endpoint kiểm tra, không thay đổi SQL hay phân quyền.

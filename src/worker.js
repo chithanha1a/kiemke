@@ -1,3 +1,5 @@
+import {APP_VERSION} from './version.js';
+import {BUILD_INFO} from './build-info.js';
 import {hashPassword as password, normalizeSetupToken} from './auth.js';
 import {buildAssets,clean,localDay,candidates,scanInstant,normalizeTable,csvCell} from './core.js';
 const json=(data={},status=200,message='')=>Response.json({ok:status<400,message,data},{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
@@ -11,12 +13,12 @@ const run=(db,q,...v)=>db.prepare(q).bind(...v).run();
 const admin=u=>{if(u.role!=='admin')fail(403,'Chỉ admin được thực hiện')};
 const manage=u=>{if(!['admin','manager'].includes(u.role))fail(403,'Không có quyền quản trị site')};
 function record(r){return {...JSON.parse(r.data),id:r.id}}
-export default {async fetch(req,env){try{
+const application = {async fetch(req,env){try{
  const url=new URL(req.url),p=url.pathname,db=env.DB;
  if(req.method!=='GET'&&req.headers.get('Origin')&&req.headers.get('Origin')!==url.origin)fail(403,'Origin không hợp lệ');
  if(Number(req.headers.get('content-length')||0)>2000000)fail(413,'Request quá lớn');
  let b={};
- const publicFiles=['/login.html','/ui.css'];
+ const publicFiles=['/login.html','/ui.css','/version.json'];
  const isStatic=publicFiles.includes(p)||p.startsWith('/assets/');
  if(isStatic){if(!['GET','HEAD'].includes(req.method))fail(405,'Method không hợp lệ');return env.ASSETS.fetch(req)}
  const mutating=['/auth/bootstrap','/auth/login','/auth/logout','/api/user-status','/api/password'];
@@ -25,13 +27,14 @@ export default {async fetch(req,env){try{
  if(!['GET','HEAD','POST'].includes(req.method))fail(405,'Method không hợp lệ');
  if(req.method==='POST'){const raw=await req.text();if(new TextEncoder().encode(raw).length>2000000)fail(413,'Request quá lớn');try{b=JSON.parse(raw)}catch{fail(400,'JSON không hợp lệ')}if(!b||typeof b!=='object'||Array.isArray(b))fail(400,'JSON phải là object');}
 
+ if(p==='/health/version'){if(req.method!=='GET')fail(405,'Yêu cầu GET');return Response.json(BUILD_INFO,{headers:{'Cache-Control':'no-store'}})}
  if(p==='/auth/setup-status'){
  if(req.method!=='GET')fail(405,'Yêu cầu GET');
- if(!db)return json({code:'D1_BINDING_MISSING',version:'48.0.0'},503,'Worker chưa có D1 binding tên DB.');
+ if(!db)return json({code:'D1_BINDING_MISSING',version:APP_VERSION},503,'Worker chưa có D1 binding tên DB.');
  try {
  const existing=await one(db,"SELECT id FROM users WHERE role='admin' LIMIT 1");
- return json({version:'48.0.0',admin_exists:!!existing,token_configured:!!normalizeSetupToken(env.SETUP_TOKEN),database_ready:true});
- } catch { return json({code:'D1_SCHEMA_NOT_READY',version:'48.0.0'},503,'Chưa đọc được bảng users. Kiểm tra binding DB và chạy migration.'); }
+ return json({version:APP_VERSION,admin_exists:!!existing,token_configured:!!normalizeSetupToken(env.SETUP_TOKEN),database_ready:true});
+ } catch { return json({code:'D1_SCHEMA_NOT_READY',version:APP_VERSION},503,'Chưa đọc được bảng users. Kiểm tra binding DB và chạy migration.'); }
  }
  if(p==='/auth/bootstrap'){
  const configured=normalizeSetupToken(env.SETUP_TOKEN),submitted=normalizeSetupToken(b.token);
@@ -152,3 +155,12 @@ export default {async fetch(req,env){try{
  fail(404,'Đường dẫn / action không tồn tại');
  return env.ASSETS.fetch(new Request(new URL(p==='/index.php'?'/scanner.html':p,url),req));
  }catch(e){console.error(e.message);if(/UNIQUE constraint failed/.test(e.message))return json({},409,'Barcode, serial hoặc tài khoản đã tồn tại. Lượt ghi đã được hủy.');return json({},e.status||500,e.status?e.message:'Không xử lý được. Kiểm tra dữ liệu trùng, cấu hình D1 và log Worker.')}}};
+
+export default {async fetch(request,env,ctx){
+ const response=await application.fetch(request,env,ctx);
+ const headers=new Headers(response.headers),path=new URL(request.url).pathname;
+ headers.set('X-KiemKe-Version',APP_VERSION);headers.set('X-KiemKe-Build',BUILD_INFO.build_id);
+ headers.set('X-Content-Type-Options','nosniff');headers.set('X-Frame-Options','DENY');headers.set('Referrer-Policy','strict-origin-when-cross-origin');
+ if(path==='/'||path.endsWith('.html')||['/admin.js','/session.js','/ui.css','/assets/js/login.js','/version.json','/health/version'].includes(path))headers.set('Cache-Control','no-store');
+ return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
+}};

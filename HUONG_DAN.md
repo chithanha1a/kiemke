@@ -1,3 +1,5 @@
+> Bản 49.0.0: làm theo DEPLOY_DUNG_PHIEN_BAN.md để xác minh source, Root directory, Active Deployment và build đang phục vụ.
+
 > Giao diện 48.0.0: đọc CAP_NHAT_GIAO_DIEN.md để cập nhật qua GitHub/Cloudflare. Giữ nguyên database_id thật và dữ liệu hiện có.
 
 > Cập nhật 47.1.0 ngày 27/10/2026: nếu users trống và khởi tạo token lỗi, làm theo SUA_LOI_ADMIN.md; có file database/CREATE_FIRST_ADMIN.sql để tạo admin đầu tiên trong D1 Console.

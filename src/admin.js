@@ -1,5 +1,9 @@
+import {APP_VERSION} from './version.js';
 import * as XLSX from 'xlsx';
 import {createLabelsPdf} from './labels.js';
+if(document.body.dataset.consoleVersion!==APP_VERSION){
+ document.body.className='auth-page';document.body.replaceChildren();const title=document.createElement('h1');title.textContent='Giao diện chưa được cập nhật đồng bộ';const p=document.createElement('p');p.textContent='Hãy deploy đầy đủ public/index.html, public/ui.css và source src/admin.js cùng một bản, sau đó tải lại trang.';document.body.append(title,p);
+}else{
 const $=id=>document.getElementById(id);
 let me,rows=[],assets=[],siteRows=[],userRows=[],page=1,currentView='inventory',busy=false;
 const viewInfo={inventory:['Danh mục thiết bị','Quản lý thiết bị, tra cứu thông tin và chuẩn bị cho kỳ kiểm kê.'],imports:['Nhập dữ liệu','Đưa danh mục thiết bị vào site từ Excel hoặc CSV.'],printing:['In tem QR','Tạo nhãn rõ nét, dễ quét và tối ưu giấy A4.'],accounts:['Tài khoản & phân quyền','Quản lý người dùng và quyền truy cập theo từng site.'],settings:['Cài đặt cá nhân','Quản lý mật khẩu và bảo mật tài khoản của anh.']};
@@ -10,7 +14,7 @@ const siteName=()=>siteRows.find(r=>r.id===siteId())?.name||'Chưa chọn site';
 const cell=(tag,text,className='')=>{const e=document.createElement(tag);e.textContent=String(text??'');if(className)e.className=className;return e};
 function notify(text,type='info'){$('message').hidden=!text;$('message').textContent=text;$('message').className='notice '+type;for(const dlg of document.querySelectorAll('dialog[open]')){let e=dlg.querySelector('.dialog-message');if(!e){e=cell('p','','notice dialog-message');dlg.querySelector('.dialog-actions').before(e)}e.textContent=text;e.className='notice dialog-message '+type;e.hidden=!text}}
 async function api(path,b,site=siteId()){
- const response=await fetch(path,{method:b?'POST':'GET',headers:{'Content-Type':'application/json','X-Site':site},body:b?JSON.stringify(b):undefined});
+ const response=await fetch(path,{cache:'no-store',method:b?'POST':'GET',headers:{'Content-Type':'application/json','X-Site':site},body:b?JSON.stringify(b):undefined});
  let result;try{result=await response.json()}catch{throw Error('Không đọc được phản hồi máy chủ. Vui lòng thử lại.')}
  if(!result.ok){if(response.status===401)location.href='/login.html';throw Error(result.message||'Không xử lý được yêu cầu.')}
  return result.data;
@@ -46,6 +50,7 @@ $('openUserDialog').onclick=()=>{$('userSiteLabel').textContent='Site được g
 function download(bytes,name,type){const url=URL.createObjectURL(new Blob([bytes],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000)}
 function csv(data){return '\ufeff'+XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(data.map(r=>Object.fromEntries(Object.entries(r).map(([k,v])=>[k,/^\s*[=+@-]/.test(String(v))?"'"+v:v])))))}
 function metrics(){
+ for(const input of document.querySelectorAll('[data-label-index]')){input.checked=!!$('labels').options[Number(input.dataset.labelIndex)]?.selected;input.closest('.label-option').classList.toggle('selected',input.checked)}
  $('assetCount').textContent=assets.length.toLocaleString('vi-VN');$('factoryCount').textContent=new Set(assets.map(a=>a.Factory).filter(Boolean)).size.toLocaleString('vi-VN');
  const n=$('labels').selectedOptions.length,estimated=Math.ceil(n/24);$('selectedLabelCount').textContent=n;$('pageEstimate').textContent=n?estimated+' trang A4 dự kiến':'24 nhãn trên mỗi trang A4';$('printSelection').textContent=n+' nhãn · '+estimated+' trang';syncControls();
 }
@@ -63,12 +68,12 @@ function renderAssets(){
 }
 $('assetSearch').oninput=()=>{page=1;renderAssets()};$('pageSize').onchange=()=>{page=1;renderAssets()};$('prevPage').onclick=()=>{page--;renderAssets()};$('nextPage').onclick=()=>{page++;renderAssets()};
 async function load(){
- const scope=siteId();if(!scope){assets=[];renderAssets();metrics();return}const loaded=[];
+ const scope=siteId();if(!scope){assets=[];renderAssets();metrics();return}$('assetSummary').textContent='Đang tải danh mục của '+siteName()+'…';const loaded=[];
  for(let offset=0;;offset+=100){const r=await api('/api/assets?offset='+offset,undefined,scope);loaded.push(...r.rows);if(r.rows.length<100)break}
  if(scope!==siteId())return;assets=loaded;
  const selectedSerial=assets[$('asset').value]?.McSerialNumber;for(const id of ['asset','labels'])$(id).replaceChildren(...assets.map((r,i)=>new Option(r.McSerialNumber+' · '+(r.McName||'Thiết bị'),i)));
  if(selectedSerial){const index=assets.findIndex(a=>a.McSerialNumber===selectedSerial);if(index>=0)$('asset').value=String(index)}
- page=1;edit();renderAssets();metrics();
+ page=1;edit();renderAssets();renderLabelPicker();metrics();
 }
 const fields=[['McName','Tên thiết bị'],['McSerialNumber','Serial kiểm kê'],['barcode','Barcode'],['McType','Loại thiết bị'],['McBrand','Hãng'],['McModel','Model'],['Factory','Xưởng'],['CurrentLocation','Vị trí hiện tại'],['Usedby','Người sử dụng'],['Position','Bộ phận / vị trí'],['Status','Trạng thái'],['AccountingCode','Mã tài sản'],['ManuSerialNo','Serial nhà sản xuất'],['PurchaseDate','Ngày mua'],['Remark','Ghi chú']];
 function edit(){
@@ -79,7 +84,7 @@ function edit(){
 $('asset').onchange=edit;
 function clearImport(){rows=[];$('file').value='';$('fileName').textContent='XLSX, XLS, CSV · tối đa 100 dòng / 5 MB';$('columns').replaceChildren();$('preview').replaceChildren(cell('div','Chọn file để xem trước nội dung.','empty-state compact'));$('importMeta').textContent='Chưa chọn file.';$('importBadge').textContent='Chưa có file';barcodePreview()}
 function choose(){
- sessionStorage.setItem('site',siteId());sessionStorage.setItem('scope',me.id+':'+siteId());assets=[];page=1;clearImport();$('edit').value='';$('asset').replaceChildren();$('labels').replaceChildren();renderAssets();metrics();showView(currentView,false);
+ sessionStorage.setItem('site',siteId());sessionStorage.setItem('scope',me.id+':'+siteId());assets=[];page=1;clearImport();$('edit').value='';$('asset').replaceChildren();$('labels').replaceChildren();$('labelSearch').value='';renderLabelPicker();renderAssets();metrics();showView(currentView,false);
 }
 $('sites').onchange=async()=>{choose();try{await load()}catch(e){notify(e.message,'error')}};
 async function initSites(preferred){const r=await api('/api/sites');siteRows=r.rows;const wanted=preferred||sessionStorage.getItem('site');$('sites').replaceChildren(...siteRows.map(r=>new Option(r.name,r.id)));if(!siteRows.length)$('sites').append(new Option('Chưa có site',''));if(siteRows.some(r=>r.id===wanted))$('sites').value=wanted;choose();await load()}
@@ -99,7 +104,14 @@ action('import',async()=>{if(!rows.length)throw Error('Chọn file có dữ li�
 action('load',load,'Danh mục đã được cập nhật.');
 action('save',async()=>{let data;try{data=JSON.parse($('edit').value)}catch{throw Error('Dữ liệu JSON không hợp lệ.')}if(data.barcode!==assets[$('asset').value]?.barcode)throw Error('Giữ nguyên barcode khi sửa thiết bị.');await api('/api/assets',{rows:[data]});await load();$('assetDialog').close()},'Đã lưu thông tin thiết bị.');
 action('export',async()=>{await load();download(csv(assets),'assets.csv','text/csv')},'Đã xuất danh mục thiết bị.');
-$('labels').onchange=metrics;$('selectAllLabels').onclick=()=>{if(assets.length>300){notify('Chỉ có thể in 300 nhãn mỗi lượt. Đã chọn 300 thiết bị đầu.');}for(const [i,o] of [...$('labels').options].entries())o.selected=i<300;metrics()};$('clearLabels').onclick=()=>{for(const o of $('labels').options)o.selected=false;metrics()};
+function renderLabelPicker(){
+ const host=$('labelOptions'),query=$('labelSearch').value.trim().toLocaleLowerCase('vi-VN');host.replaceChildren();
+ const filtered=assets.map((asset,index)=>({asset,index})).filter(({asset})=>!query||[asset.McName,asset.McSerialNumber,asset.barcode,asset.Factory].join(' ').toLocaleLowerCase('vi-VN').includes(query));
+ if(!filtered.length){const empty=cell('div','','empty-state');empty.append(cell('h2',assets.length?'Không tìm thấy thiết bị':'Chưa có thiết bị để in tem'),cell('p',assets.length?'Thử tìm theo barcode, serial hoặc tên khác.':'Nhập danh mục cho site hiện tại, rồi quay lại chọn nhãn QR.'));if(!assets.length&&canManage()){const b=cell('button','Đi đến nhập dữ liệu','btn btn-outline');b.onclick=()=>showView('imports');empty.append(b)}host.append(empty);return}
+ for(const {asset,index} of filtered){const label=cell('label','','label-option'),input=document.createElement('input');input.type='checkbox';input.dataset.labelIndex=index;input.checked=!!$('labels').options[index]?.selected;input.setAttribute('aria-label','In tem '+asset.McSerialNumber);input.onchange=()=>{const selected=$('labels').selectedOptions.length;if(input.checked&&selected>=300){input.checked=false;notify('Tối đa 300 nhãn mỗi lần in.','error');return}$('labels').options[index].selected=input.checked;metrics()};const text=cell('span','','label-option-text');text.append(cell('strong',asset.McName||asset.McSerialNumber),cell('small',asset.McSerialNumber+' · '+(asset.Factory||'Chưa cập nhật xưởng')));label.append(input,text,cell('code',asset.barcode));host.append(label)}
+}
+$('labelSearch').oninput=renderLabelPicker;
+$('labels').onchange=()=>{renderLabelPicker();metrics()};$('selectAllLabels').onclick=()=>{if(assets.length>300){notify('Chỉ có thể in 300 nhãn mỗi lượt. Đã chọn 300 thiết bị đầu.');}for(const [i,o] of [...$('labels').options].entries())o.selected=i<300;metrics()};$('clearLabels').onclick=()=>{for(const o of $('labels').options)o.selected=false;metrics()};
 action('pdf',async()=>{const selected=[...$('labels').selectedOptions].map(o=>assets[o.value]);download(await createLabelsPdf(selected),'qr-labels-a4.pdf','application/pdf')},'Đã tạo PDF A4. Khi in, chọn Actual size / 100%.');
 async function users(){const r=await api('/api/users');userRows=r.rows;const table=cell('table','','data-table'),thead=document.createElement('thead'),hr=document.createElement('tr');['Tài khoản','Quyền truy cập','Site / Phòng ban','Trạng thái','Thao tác'].forEach(t=>hr.append(cell('th',t)));thead.append(hr);table.append(thead);const body=document.createElement('tbody');for(const user of userRows){const tr=document.createElement('tr'),who=cell('td','');who.append(cell('strong',user.username),cell('small',user.id===me.id?'Tài khoản của anh':''));tr.append(who,cell('td',roleNames[user.role]||user.role));const site=cell('td','');site.append(cell('strong',user.role==='admin'?'Toàn hệ thống':siteRows.find(s=>s.id===user.site_id)?.name||'—'),cell('small',user.department||'—'));tr.append(site);const status=cell('td','');status.append(cell('span',user.active?'Đang hoạt động':'Đã khóa','badge '+(user.active?'badge-green':'badge-red')));tr.append(status);const td=cell('td',''),btn=cell('button','Quản lý','btn btn-small btn-outline');btn.onclick=()=>{$('uid').value=user.id;$('selectedUserLabel').textContent='Đang chọn: '+user.username+' · '+(roleNames[user.role]||user.role);$('newpass').value='';syncControls();$('newpass').focus()};td.append(btn);tr.append(td);body.append(tr)}table.append(body);$('users').replaceChildren(table)}
 action('createUser',async()=>{if(!$('username').value.trim())throw Error('Nhập tên đăng nhập.');if($('password').value.length<12)throw Error('Mật khẩu cần ít nhất 12 ký tự.');if($('role').value!=='admin'&&!siteId())throw Error('Chọn site trước khi tạo manager hoặc scanner.');await api('/api/users',{username:$('username').value.trim(),password:$('password').value,role:$('role').value,site_id:siteId(),department:$('department').value});$('password').value='';await users();$('userDialog').close()},'Đã tạo tài khoản.');
@@ -107,7 +119,10 @@ action('reset',async()=>{if(!$('uid').value)throw Error('Chọn tài khoản c�
 for(const [id,active]of [['disable',false],['enable',true]])action(id,async()=>{if(!$('uid').value)throw Error('Chọn tài khoản cần quản lý.');if(!active&&!confirm('Khóa tài khoản này và kết thúc các phiên đăng nhập?'))return false;await api('/api/user-status',{id:$('uid').value,active});await users()},'Đã cập nhật yêu cầu quản lý tài khoản.');
 action('ownreset',async()=>{if($('ownpass').value.length<12)throw Error('Mật khẩu cần ít nhất 12 ký tự.');await api('/api/password',{password:$('ownpass').value});location.href='/login.html'},'');
 (async()=>{try{
+ const versionResponse=await fetch('/health/version',{cache:'no-store'});if(!versionResponse.ok)throw Error('Worker chưa đồng bộ với giao diện mới. Kiểm tra Root directory và Active Deployment trên Cloudflare.');const version=await versionResponse.json();if(version.version!==APP_VERSION)throw Error('Giao diện '+APP_VERSION+' khác phiên bản Worker '+(version.version||'không xác định')+'. Hãy deploy đầy đủ source và public.');$('releaseLabel').textContent='v'+version.version;$('releaseLabel').title='Build '+version.build_id;$('settingsVersion').textContent=version.version;$('settingsBuild').textContent=version.build_id;
  me=await api('/auth/me');$('who').textContent=me.username+' · '+(roleNames[me.role]||me.role);$('avatar').textContent=me.username.slice(0,1).toUpperCase();
  document.querySelectorAll('.admin').forEach(e=>e.hidden=me.role!=='admin');document.querySelectorAll('.manage').forEach(e=>e.hidden=me.role==='scanner');document.querySelector('.non-admin-empty').hidden=me.role==='admin';
  showView(location.hash.slice(1)||'inventory',false);await initSites();if(me.role==='admin')await users();syncControls();
- }catch(e){notify(e.message,'error')}})();
+ }catch(e){notify(e.message,'error');if(!me){document.querySelectorAll('button,input,select,textarea').forEach(e=>e.disabled=true);const reload=cell('button','Tải lại ứng dụng','btn btn-outline');reload.onclick=()=>location.reload();$('message').append(document.createElement('br'),reload)}}})();
+
+}

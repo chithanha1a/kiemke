@@ -1,3 +1,14 @@
+# Bổ sung bản 49.0.0 — 27/10/2026
+
+- 34/34 unit/schema/auth/QR/PDF/release tests PASS.
+- 133 request API / 167 assertions PASS trên D1 local test riêng, khởi tạo từ database trống.
+- 24 checks browser luồng chính và 21 checks browser giao diện/quyền/đồng bộ phiên bản PASS; 0 uncaught page errors.
+- Kiểm thử mới xác nhận Worker cũ/giao diện mới bị phát hiện và khóa thao tác; có nút tải lại.
+- QR picker có tìm kiếm/checkbox, trạng thái trống và khóa PDF khi không có thiết bị; kiểm thử trực tiếp trên browser.
+- Hai manifest runtime/static có cùng version/build, không chứa credential và không cache. Build kiểm tra marker HTML trước khi phát hành.
+- 24 mã trên PDF A4 render 120 DPI đọc lại đúng; Wrangler deploy --dry-run PASS.
+- Website Production trả HTTP 403 khi công cụ thực hiện đọc công khai; chưa kiểm chứng backend/Cloudflare account thật hoặc nguyên nhân nhãn Dangerous trong trình duyệt. Không tuyên bố đã gỡ cảnh báo. Hướng dẫn ở DEPLOY_DUNG_PHIEN_BAN.md.
+
 # Bổ sung giao diện 48.0.0 — 27/10/2026
 
 31 unit tests PASS; 23 checks browser cho luồng chính và 16 checks browser cho giao diện/quyền/tài khoản PASS, 0 uncaught page errors. Đã kiểm tra desktop/mobile và giữ 4 tab scanner. Chi tiết ở CAP_NHAT_GIAO_DIEN.md. Camera thật và Cloudflare production chưa được kiểm thử trong lần sửa giao diện này.
