@@ -1,1 +1,25 @@
-49.0.0 — 2026-10-27 — Verified deployment versions and improved administration / QR picker
+46.0.0
+- Restored the original two-connection architecture using the owner-supplied connect.php and connect2.php values as compatibility fallbacks.
+- MySQL remains the fixed persistence target; MSSQL/MySQL selection controls lookup only.
+- Queue UI now explicitly shows lookup source followed by the fixed MySQL save target.
+- MySQL connection failures now expose safe reason_code and mysql_errno diagnostics without leaking credentials.
+- Detects missing mysqli, access denied, missing database, refused connection and unresolved host separately.
+- Fixed the MySQL INSERT contract: scan_department is now included in both columns and values (53 fixed fields).
+- Older production schemas are repaired idempotently before read/write, preventing missing-column failures after deployment.
+- Empty MySQL passwords are supported when the configured account intentionally uses one; mysql_user remains mandatory.
+- PHP 8 mysqli strict exceptions are normalized into retryable JSON responses and detailed server logs.
+- Lookup source remains selectable between MySQL and MS SQL Server; scan/OCR persistence is permanently fixed to MySQL.
+- QR queue payloads explicitly carry save_target=mysql, independent from lookup_data_source.
+- MySQL save timeout increased to 15 seconds and connection errors now return consistent JSON for reliable offline retry.
+- Scan department can be entered as new or selected from local/server history.
+- Every QR/offline queue item keeps its scan department until synchronization succeeds.
+- Dashboard shows unique devices scanned in the current session / QR records saved today for the selected user and department.
+- Production hardening: secrets moved to environment/config.local.php, CSRF protection and security headers added.
+- JSON application logs are written daily with request IDs, sensitive-field redaction and retention cleanup.
+- QR lookup normalization is case-safe in both save and machine APIs.
+- Scan queue now has a localStorage fallback/shadow in addition to IndexedDB. Failed sync stays local and retries until the server confirms success; only then is it deleted.
+- Settings device type selector is now a multi-select checkbox list; one or many 4-character McSerialNumber prefixes can be selected together.
+- Factory discovery, online lookup, offline cache download/delete and offline lookup work across all selected device codes.
+- Device note / Ghi chú is stored in ocr_scan_records.scan_comment, updated for same-day duplicate scans, searchable, shown in the QR report and exported to Excel.
+- QR report/export now includes bilingual Vietnamese/English headings and fuller Overview machine fields.
+- Existing OCR_Scan_db architecture is preserved; no extra database is created.
